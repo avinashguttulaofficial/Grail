@@ -6,21 +6,29 @@ import { SchedulerTaskKey } from './types';
 
 export const schedulerRouter = express.Router();
 
+const VALID_TASK_KEYS: SchedulerTaskKey[] = [
+  'task_a_nightly',
+  'task_b_morning',
+  'task_c_india',
+  'task_d_expiry',
+  'task_e_retention',
+];
+
 /**
  * GET /api/scheduler/status
- * Return current status, configs, last runs, and next execution times for all 3 tasks
+ * Return current status, configs, last runs, and overview metrics for all 5 tasks
  */
 schedulerRouter.get('/status', async (_req: Request, res: Response) => {
   try {
     const configs = await ServerDatabase.getSchedulerConfigs();
     const allRuns = await ServerDatabase.getSchedulerRuns(undefined, 100);
+    const overview = await ServerDatabase.getOverviewStats();
 
     const taskSummaries = configs.map((cfg) => {
       const taskRuns = allRuns.filter((r) => r.task_key === cfg.task_key);
       const lastRun = taskRuns[0] || undefined;
       const nextExecution = CronManager.getNextExecutionTime(cfg.task_key);
 
-      // Aggregates
       const totalSyncedAllTime = taskRuns.reduce((acc, r) => acc + (r.synced_count || 0), 0);
       const totalRuns = taskRuns.length;
 
@@ -38,12 +46,24 @@ schedulerRouter.get('/status', async (_req: Request, res: Response) => {
       };
     });
 
+    // Find nearest next scheduled sync among enabled tasks
+    const enabledTasks = taskSummaries.filter((t) => t.enabled);
+    const nextSyncDates = enabledTasks
+      .map((t) => new Date(t.nextExecutionTime).getTime())
+      .filter((time) => !isNaN(time));
+    const nextScheduledSync =
+      nextSyncDates.length > 0 ? new Date(Math.min(...nextSyncDates)).toISOString() : null;
+
     const istNow = CronManager.getNowInIST();
 
     res.json({
       success: true,
       currentServerTimeUtc: new Date().toISOString(),
       currentServerTimeIst: istNow.dateString,
+      overview: {
+        ...overview,
+        nextScheduledSync,
+      },
       tasks: taskSummaries,
     });
   } catch (error: any) {
@@ -64,6 +84,11 @@ schedulerRouter.post('/toggle', async (req: Request, res: Response) => {
       return;
     }
 
+    if (!VALID_TASK_KEYS.includes(taskKey as SchedulerTaskKey)) {
+      res.status(400).json({ success: false, error: `Invalid taskKey: ${taskKey}` });
+      return;
+    }
+
     const updated = await ServerDatabase.updateSchedulerConfig(taskKey as SchedulerTaskKey, {
       enabled,
     });
@@ -77,13 +102,12 @@ schedulerRouter.post('/toggle', async (req: Request, res: Response) => {
 
 /**
  * POST /api/scheduler/run/:taskKey
- * Manually trigger execution of a task ("Run Now")
+ * Manually trigger execution of a task ("Run Now", "Run Expiry", "Run Retention")
  */
 schedulerRouter.post('/run/:taskKey', async (req: Request, res: Response) => {
   try {
     const taskKey = req.params.taskKey as SchedulerTaskKey;
-    const validKeys: SchedulerTaskKey[] = ['task_a_nightly', 'task_b_morning', 'task_c_india'];
-    if (!validKeys.includes(taskKey)) {
+    if (!VALID_TASK_KEYS.includes(taskKey)) {
       res.status(400).json({ success: false, error: `Invalid taskKey: ${taskKey}` });
       return;
     }
@@ -105,7 +129,6 @@ schedulerRouter.post('/cron/:taskKey', async (req: Request, res: Response) => {
     const taskKey = req.params.taskKey as SchedulerTaskKey;
     const cronSecret = process.env.CRON_SECRET;
 
-    // If CRON_SECRET is configured, enforce Bearer authorization
     if (cronSecret) {
       const authHeader = req.headers.authorization;
       if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
@@ -114,8 +137,7 @@ schedulerRouter.post('/cron/:taskKey', async (req: Request, res: Response) => {
       }
     }
 
-    const validKeys: SchedulerTaskKey[] = ['task_a_nightly', 'task_b_morning', 'task_c_india'];
-    if (!validKeys.includes(taskKey)) {
+    if (!VALID_TASK_KEYS.includes(taskKey)) {
       res.status(400).json({ success: false, error: `Invalid taskKey: ${taskKey}` });
       return;
     }

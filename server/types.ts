@@ -1,4 +1,9 @@
-export type SchedulerTaskKey = 'task_a_nightly' | 'task_b_morning' | 'task_c_india';
+export type SchedulerTaskKey =
+  | 'task_a_nightly'
+  | 'task_b_morning'
+  | 'task_c_india'
+  | 'task_d_expiry'
+  | 'task_e_retention';
 
 export interface SchedulerConfig {
   id: string;

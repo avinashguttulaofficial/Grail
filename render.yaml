@@ -23,12 +23,12 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
-  # 2. Render Cron Job — TASK A: Nightly Full Feed Sync (9:30 PM IST / 16:00 UTC)
+  # 2. Render Cron Job — TASK A: Nightly Himalayas Import (9:30 PM IST / 16:00 UTC)
   - type: cron
     name: grail-jobs-nightly-sync
     runtime: node
     plan: starter
-    schedule: "30 16 * * *"
+    schedule: "0 16 * * *"
     buildCommand: npm install
     startCommand: npm run scheduler:run task_a_nightly
     envVars:
@@ -41,12 +41,12 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
-  # 3. Render Cron Job — TASK B: Morning Feed Sync (7:30 AM IST / 02:00 UTC)
+  # 3. Render Cron Job — TASK B: Morning Himalayas Import (7:30 AM IST / 02:00 UTC)
   - type: cron
     name: grail-jobs-morning-sync
     runtime: node
     plan: starter
-    schedule: "30 2 * * *"
+    schedule: "0 2 * * *"
     buildCommand: npm install
     startCommand: npm run scheduler:run task_b_morning
     envVars:
@@ -59,14 +59,50 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
-  # 4. Render Cron Job — TASK C: India Location Sync (Every 6 hours: 00:00, 06:00, 12:00, 18:00 IST / 18:30, 00:30, 06:30, 12:30 UTC)
+  # 4. Render Cron Job — TASK C: India-Eligible Job Import (Every 6 hours: 00:00, 06:00, 12:00, 18:00 IST / 18:30, 00:30, 06:30, 12:30 UTC)
   - type: cron
     name: grail-jobs-india-sync
     runtime: node
     plan: starter
-    schedule: "30 0,6,12,18 * * *"
+    schedule: "30 18,0,6,12 * * *"
     buildCommand: npm install
     startCommand: npm run scheduler:run task_c_india
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # 5. Render Cron Job — TASK D: Job Expiry Check (Daily 1:30 AM IST / 20:00 UTC)
+  - type: cron
+    name: grail-jobs-job-expiry
+    runtime: node
+    plan: starter
+    schedule: "0 20 * * *"
+    buildCommand: npm install
+    startCommand: npm run scheduler:run task_d_expiry
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # 6. Render Cron Job — TASK E: Job Retention Cleanup (Daily 2:00 AM IST / 20:30 UTC)
+  - type: cron
+    name: grail-jobs-job-retention
+    runtime: node
+    plan: starter
+    schedule: "30 20 * * *"
+    buildCommand: npm install
+    startCommand: npm run scheduler:run task_e_retention
     envVars:
       - key: NODE_ENV
         value: production

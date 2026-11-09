@@ -94,13 +94,22 @@ export class HimalayasService {
       (c) => c.slug === raw.companySlug || c.name.toLowerCase() === raw.companyName.toLowerCase()
     );
 
+    let companyWebsite = 'https://himalayas.app';
+    if (raw.guid) {
+      try {
+        companyWebsite = new URL(raw.guid).origin;
+      } catch (_) {
+        companyWebsite = 'https://himalayas.app';
+      }
+    }
+
     if (!company) {
       company = DataStore.createCompany({
         name: raw.companyName,
         slug: raw.companySlug || raw.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         logo_url: raw.companyLogo || undefined,
         description: `${raw.companyName} is a remote-first organization hiring through the Himalayas talent network.`,
-        website: raw.guid ? new URL(raw.guid).origin : 'https://himalayas.app',
+        website: companyWebsite,
         industry: raw.categories?.[0] || 'Software & Digital Products',
         company_size: '50-200',
         headquarters: raw.locationRestrictions?.[0] || 'Remote Worldwide',
@@ -132,7 +141,28 @@ export class HimalayasService {
       .replace(/\s+/g, ' ')
       .trim();
 
-    // 5. Create Job Record
+    // 5. Check if job already exists to update instead of creating duplicate
+    const existingJobs = DataStore.getJobs();
+    const existingJob = existingJobs.find(
+      (j) =>
+        (raw.guid && (j as any).external_job_id === raw.guid) ||
+        (raw.guid && j.external_application_url === raw.guid) ||
+        (raw.applicationLink && j.external_application_url === raw.applicationLink) ||
+        (j.company?.slug === raw.companySlug && j.title.toLowerCase().trim() === raw.title.toLowerCase().trim())
+    );
+
+    if (existingJob) {
+      const updated = DataStore.updateJob(existingJob.id, {
+        source: 'himalayas',
+        external_job_id: raw.guid || (existingJob as any).external_job_id,
+        salary_min: raw.minSalary || existingJob.salary_min,
+        salary_max: raw.maxSalary || existingJob.salary_max,
+        salary_currency: raw.currency || existingJob.salary_currency,
+        external_application_url: raw.applicationLink || existingJob.external_application_url,
+      });
+      return { job: updated, company };
+    }
+
     const location = raw.locationRestrictions?.length
       ? `Remote (${raw.locationRestrictions.slice(0, 3).join(', ')})`
       : 'Remote Worldwide';
@@ -141,6 +171,9 @@ export class HimalayasService {
       title: raw.title,
       slug: `${raw.companySlug}-${raw.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
       company_id: company.id,
+      source: 'himalayas',
+      external_job_id: raw.guid,
+      imported_at: new Date().toISOString(),
       description: cleanDescription || `Remote ${raw.title} opportunity at ${raw.companyName}.`,
       responsibilities: [
         'Deliver high-quality work aligned with team OKRs and sprint deliverables',

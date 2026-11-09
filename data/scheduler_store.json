@@ -42,6 +42,31 @@
         "filter": "india",
         "description": "Every 6 hours (00:00, 06:00, 12:00, 18:00 IST) sync for India and Worldwide eligible jobs"
       }
+    },
+    {
+      "id": "cfg-task-d",
+      "task_key": "task_d_expiry",
+      "name": "Job Expiry Check",
+      "enabled": true,
+      "schedule_expression": "0 20 * * *",
+      "timezone": "Asia/Kolkata",
+      "configuration_json": {
+        "istTime": "Daily 1:30 AM IST",
+        "description": "Daily check marking published jobs with passed application deadlines as expired"
+      }
+    },
+    {
+      "id": "cfg-task-e",
+      "task_key": "task_e_retention",
+      "name": "Job Retention Cleanup",
+      "enabled": true,
+      "schedule_expression": "30 20 * * *",
+      "timezone": "Asia/Kolkata",
+      "configuration_json": {
+        "istTime": "Daily 2:00 AM IST",
+        "retentionMonths": 3,
+        "description": "Daily retention cleanup permanently deleting eligible Himalayas jobs closed > 3 months (never deletes manual jobs)"
+      }
     }
   ],
   "runs": [
@@ -112,6 +137,122 @@
   ],
   "jobErrors": [],
   "syncedJobs": [
+    {
+      "title": "Senior Design Systems Lead",
+      "slug": "mono-studio-senior-design-systems-lead-mw8ywa5g",
+      "source": "himalayas",
+      "external_job_id": "test-guid-1794210987364",
+      "imported_at": "2026-11-09T07:56:27.365Z",
+      "description": "Remote Senior Design Systems Lead opportunity at Mono Studio.",
+      "responsibilities": [
+        "Deliver high-quality work aligned with team OKRs and sprint deliverables",
+        "Collaborate across distributed timezones using asynchronous workflows",
+        "Maintain clear documentation and technical standards"
+      ],
+      "requirements": [
+        "Demonstrated professional experience in relevant discipline",
+        "Strong asynchronous communication and self-direction",
+        "Comfort working within a fully remote, international engineering team"
+      ],
+      "qualifications": [
+        "Proven track record in digital products or modern web applications"
+      ],
+      "benefits": [
+        "100% remote working flexibility",
+        "Competitive compensation via Himalayas platform",
+        "Global health and workstation allowances where applicable"
+      ],
+      "location": "Remote (Worldwide)",
+      "country": "Worldwide",
+      "workplace_type": "remote",
+      "employment_type": "full-time",
+      "experience_level": "mid",
+      "salary_min": 130000,
+      "salary_max": 160000,
+      "salary_currency": "USD",
+      "salary_period": "yearly",
+      "salary_visible": true,
+      "application_mode": "external",
+      "external_application_url": "https://example.com/apply/test-guid-1794210987364",
+      "status": "published",
+      "is_featured": false,
+      "skills": [
+        "Remote",
+        "Engineering"
+      ],
+      "created_at": "2026-11-09T07:56:27.365Z",
+      "updated_at": "2026-11-09T07:56:27.368Z",
+      "company": {
+        "name": "Mono Studio",
+        "slug": "mono-studio",
+        "description": "Mono Studio is a remote-first organization hiring through the Himalayas talent network.",
+        "website": "https://himalayas.app",
+        "industry": "Software & Digital Products",
+        "company_size": "50-200",
+        "headquarters": "Worldwide",
+        "country": "Worldwide",
+        "city": "Remote"
+      },
+      "id": "job-1794210987366-q2ff9"
+    },
+    {
+      "title": "Senior Design Systems Lead",
+      "slug": "mono-studio-senior-design-systems-lead-mw8yvf6i",
+      "source": "himalayas",
+      "external_job_id": "test-guid-1794210947226",
+      "imported_at": "2026-11-09T07:55:47.226Z",
+      "description": "Remote Senior Design Systems Lead opportunity at Mono Studio.",
+      "responsibilities": [
+        "Deliver high-quality work aligned with team OKRs and sprint deliverables",
+        "Collaborate across distributed timezones using asynchronous workflows",
+        "Maintain clear documentation and technical standards"
+      ],
+      "requirements": [
+        "Demonstrated professional experience in relevant discipline",
+        "Strong asynchronous communication and self-direction",
+        "Comfort working within a fully remote, international engineering team"
+      ],
+      "qualifications": [
+        "Proven track record in digital products or modern web applications"
+      ],
+      "benefits": [
+        "100% remote working flexibility",
+        "Competitive compensation via Himalayas platform",
+        "Global health and workstation allowances where applicable"
+      ],
+      "location": "Remote (Worldwide)",
+      "country": "Worldwide",
+      "workplace_type": "remote",
+      "employment_type": "full-time",
+      "experience_level": "mid",
+      "salary_min": 130000,
+      "salary_max": 160000,
+      "salary_currency": "USD",
+      "salary_period": "yearly",
+      "salary_visible": true,
+      "application_mode": "external",
+      "external_application_url": "https://example.com/apply/test-guid-1794210947226",
+      "status": "published",
+      "is_featured": false,
+      "skills": [
+        "Remote",
+        "Engineering"
+      ],
+      "created_at": "2026-11-09T07:55:47.226Z",
+      "updated_at": "2026-11-09T07:55:47.232Z",
+      "company": {
+        "name": "Mono Studio",
+        "slug": "mono-studio",
+        "description": "Mono Studio is a remote-first organization hiring through the Himalayas talent network.",
+        "website": "https://himalayas.app",
+        "industry": "Software & Digital Products",
+        "company_size": "50-200",
+        "headquarters": "Worldwide",
+        "country": "Worldwide",
+        "city": "Remote"
+      },
+      "id": "job-1794210947229-4k8z9"
+    },
     {
       "title": "Expert AI Engineer",
       "slug": "description-ciklum-expert-ai-engineer-mw8vr748",
@@ -1424,6 +1565,18 @@
       "headquarters": "Norway",
       "country": "Norway",
       "city": "Remote"
+    },
+    {
+      "name": "Mono Studio",
+      "slug": "mono-studio",
+      "description": "Mono Studio is a remote-first organization hiring through the Himalayas talent network.",
+      "website": "https://himalayas.app",
+      "industry": "Software & Digital Products",
+      "company_size": "50-200",
+      "headquarters": "Worldwide",
+      "country": "Worldwide",
+      "city": "Remote"
     }
-  ]
+  ],
+  "applications": []
 }

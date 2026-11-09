@@ -6,7 +6,13 @@ dotenv.config();
 
 async function main() {
   const taskKey = process.argv[2] as SchedulerTaskKey;
-  const validKeys: SchedulerTaskKey[] = ['task_a_nightly', 'task_b_morning', 'task_c_india'];
+  const validKeys: SchedulerTaskKey[] = [
+    'task_a_nightly',
+    'task_b_morning',
+    'task_c_india',
+    'task_d_expiry',
+    'task_e_retention',
+  ];
 
   if (!taskKey || !validKeys.includes(taskKey)) {
     console.error(`Error: Invalid or missing taskKey. Valid options are: ${validKeys.join(', ')}`);

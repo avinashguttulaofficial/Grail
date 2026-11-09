@@ -871,15 +871,26 @@ function notifyListeners() {
   });
 }
 
-// Storage helpers with JSON fallbacks
+// Storage helpers with JSON fallbacks and universal memory fallback for SSR / Node
+const memoryStorage = new Map<string, string>();
+
 function getStorage<T>(key: string, defaultValue: T): T {
   try {
-    const item = localStorage.getItem(key);
-    if (!item) {
-      localStorage.setItem(key, JSON.stringify(defaultValue));
-      return defaultValue;
+    if (typeof localStorage !== 'undefined') {
+      const item = localStorage.getItem(key);
+      if (!item) {
+        localStorage.setItem(key, JSON.stringify(defaultValue));
+        return defaultValue;
+      }
+      return JSON.parse(item) as T;
+    } else {
+      const item = memoryStorage.get(key);
+      if (!item) {
+        memoryStorage.set(key, JSON.stringify(defaultValue));
+        return defaultValue;
+      }
+      return JSON.parse(item) as T;
     }
-    return JSON.parse(item) as T;
   } catch {
     return defaultValue;
   }
@@ -887,7 +898,11 @@ function getStorage<T>(key: string, defaultValue: T): T {
 
 function setStorage<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(value));
+    } else {
+      memoryStorage.set(key, JSON.stringify(value));
+    }
     notifyListeners();
   } catch (e) {
     console.error('Storage error:', e);
@@ -1128,7 +1143,7 @@ export class DataStore {
     return this.getJobs().find((j) => j.slug === slug);
   }
 
-  static createJob(data: Omit<Job, 'id' | 'created_at' | 'updated_at'>): Job {
+  static createJob(data: Omit<Job, 'id' | 'created_at' | 'updated_at' | 'slug'> & { slug?: string }): Job {
     const jobs = getStorage<Job[]>(KEY_JOBS, INITIAL_JOBS);
     // Guarantee unique slug
     let baseSlug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -1140,6 +1155,8 @@ export class DataStore {
 
     const newJob: Job = {
       ...data,
+      source: data.source || 'manual',
+      imported_at: data.source === 'himalayas' ? (data.imported_at || new Date().toISOString()) : undefined,
       id: `job-${Date.now()}`,
       slug: finalSlug,
       created_at: new Date().toISOString(),
@@ -1189,6 +1206,86 @@ export class DataStore {
     const jobs = getStorage<Job[]>(KEY_JOBS, INITIAL_JOBS);
     setStorage(KEY_JOBS, jobs.filter((j) => j.id !== id));
     return true;
+  }
+
+  static processJobExpiry(): { count: number; expiredJobs: Job[] } {
+    const jobs = getStorage<Job[]>(KEY_JOBS, INITIAL_JOBS);
+    const now = new Date();
+    const expiredJobs: Job[] = [];
+
+    const updated = jobs.map((job) => {
+      if (
+        job.status === 'published' &&
+        job.application_deadline &&
+        new Date(job.application_deadline) <= now
+      ) {
+        const expired: Job = {
+          ...job,
+          status: 'expired',
+          closed_at: job.closed_at || now.toISOString(),
+          updated_at: now.toISOString(),
+        };
+        expiredJobs.push(expired);
+        return expired;
+      }
+      return job;
+    });
+
+    if (expiredJobs.length > 0) {
+      setStorage(KEY_JOBS, updated);
+    }
+    return { count: expiredJobs.length, expiredJobs };
+  }
+
+  static processJobRetentionCleanup(): { count: number; deletedJobIds: string[] } {
+    const jobs = getStorage<Job[]>(KEY_JOBS, INITIAL_JOBS);
+    const applications = getStorage<Application[]>(KEY_APPLICATIONS, INITIAL_APPLICATIONS);
+    const now = Date.now();
+    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
+    const deletedJobIds: string[] = [];
+
+    const remainingJobs = jobs.filter((job) => {
+      // Rule D: Never delete manually created jobs
+      if (job.source !== 'himalayas') return true;
+
+      // Rule D: Never delete active / published jobs
+      if (job.status === 'published' || job.status === 'draft') return true;
+
+      // Only expired, filled, or archived jobs are eligible
+      if (!['expired', 'filled', 'archived'].includes(job.status)) return true;
+
+      // Find applications for this job
+      const jobApps = applications.filter((a) => a.job_id === job.id);
+      const appCount = jobApps.length;
+
+      const closedAtMs = job.closed_at ? new Date(job.closed_at).getTime() : new Date(job.updated_at).getTime();
+
+      if (appCount === 0) {
+        // Rule A: Zero applications -> delete if closed >= 3 months
+        if (now - closedAtMs >= THREE_MONTHS_MS) {
+          deletedJobIds.push(job.id);
+          return false;
+        }
+      } else {
+        // Rule B & C: With applications -> retention_start = GREATEST(closed_at, latest_application_date)
+        const latestAppMs = Math.max(...jobApps.map((a) => new Date(a.applied_at).getTime()));
+        const retentionStartMs = Math.max(closedAtMs, latestAppMs);
+        if (now - retentionStartMs >= THREE_MONTHS_MS) {
+          deletedJobIds.push(job.id);
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (deletedJobIds.length > 0) {
+      setStorage(KEY_JOBS, remainingJobs);
+      const remainingApps = applications.filter((a) => !deletedJobIds.includes(a.job_id));
+      setStorage(KEY_APPLICATIONS, remainingApps);
+    }
+
+    return { count: deletedJobIds.length, deletedJobIds };
   }
 
   // --- Resumes ---
@@ -1275,6 +1372,17 @@ export class DataStore {
     resumeId?: string;
     coverLetter?: string;
   }): Application {
+    const targetJob = this.getJobs().find((j) => j.id === data.jobId);
+    if (!targetJob) {
+      throw new Error('Cannot apply: Job listing does not exist.');
+    }
+    if (targetJob.status !== 'published') {
+      throw new Error(`Cannot apply: This job listing is ${targetJob.status} and is no longer accepting applications.`);
+    }
+    if (targetJob.application_deadline && new Date(targetJob.application_deadline) <= new Date()) {
+      throw new Error('Cannot apply: The application deadline for this position has passed.');
+    }
+
     if (this.hasUserApplied(data.jobId, data.userId)) {
       throw new Error('You have already submitted an application for this position.');
     }

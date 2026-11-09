@@ -60,33 +60,30 @@ export class CronManager {
   }
 
   /**
-   * Calculate next execution time for a task in Asia/Kolkata timezone
+   * Calculate next execution time for any of the 5 tasks in Asia/Kolkata timezone
    */
   static getNextExecutionTime(taskKey: SchedulerTaskKey): Date {
     const ist = this.getNowInIST();
-    // IST is UTC + 5:30 (330 minutes)
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-    if (taskKey === 'task_a_nightly') {
-      // 9:30 PM IST (21:30)
-      const targetUtcMillis = Date.UTC(ist.year, ist.month - 1, ist.day, 21, 30, 0) - IST_OFFSET_MS;
+    const calcNextDaily = (targetHour: number, targetMinute: number) => {
+      const targetUtcMillis =
+        Date.UTC(ist.year, ist.month - 1, ist.day, targetHour, targetMinute, 0) - IST_OFFSET_MS;
       let nextDate = new Date(targetUtcMillis);
       if (nextDate.getTime() <= Date.now()) {
-        // Move to tomorrow
         nextDate = new Date(targetUtcMillis + 24 * 60 * 60 * 1000);
       }
       return nextDate;
+    };
+
+    if (taskKey === 'task_a_nightly') {
+      // 9:30 PM IST (21:30)
+      return calcNextDaily(21, 30);
     }
 
     if (taskKey === 'task_b_morning') {
       // 7:30 AM IST (07:30)
-      const targetUtcMillis = Date.UTC(ist.year, ist.month - 1, ist.day, 7, 30, 0) - IST_OFFSET_MS;
-      let nextDate = new Date(targetUtcMillis);
-      if (nextDate.getTime() <= Date.now()) {
-        // Move to tomorrow
-        nextDate = new Date(targetUtcMillis + 24 * 60 * 60 * 1000);
-      }
-      return nextDate;
+      return calcNextDaily(7, 30);
     }
 
     if (taskKey === 'task_c_india') {
@@ -99,9 +96,18 @@ export class CronManager {
           return candDate;
         }
       }
-      // If all passed today, first run tomorrow is 00:00 IST
       const tomorrowMidnight = Date.UTC(ist.year, ist.month - 1, ist.day + 1, 0, 0, 0) - IST_OFFSET_MS;
       return new Date(tomorrowMidnight);
+    }
+
+    if (taskKey === 'task_d_expiry') {
+      // Daily 1:30 AM IST (01:30)
+      return calcNextDaily(1, 30);
+    }
+
+    if (taskKey === 'task_e_retention') {
+      // Daily 2:00 AM IST (02:00)
+      return calcNextDaily(2, 0);
     }
 
     return new Date(Date.now() + 60 * 60 * 1000);
@@ -113,14 +119,13 @@ export class CronManager {
   static start(): void {
     if (this.isRunning) return;
     this.isRunning = true;
-    console.log('[CronManager] Initialized in-process scheduler daemon for Asia/Kolkata.');
+    console.log('[CronManager] Initialized 5-task in-process scheduler daemon for Asia/Kolkata.');
 
     // Run tick check every 30 seconds
     this.timer = setInterval(() => {
       this.checkAndTriggerDueTasks();
     }, 30000);
 
-    // Initial check on startup
     this.checkAndTriggerDueTasks();
   }
 
@@ -133,7 +138,7 @@ export class CronManager {
   }
 
   /**
-   * Evaluate if any of the three tasks are due right now in IST
+   * Evaluate if any of the 5 tasks are due right now in IST
    */
   private static async checkAndTriggerDueTasks(): Promise<void> {
     const ist = this.getNowInIST();
@@ -153,6 +158,16 @@ export class CronManager {
     if ([0, 6, 12, 18].includes(ist.hour) && ist.minute === 0) {
       await this.triggerTaskIfDue('task_c_india', currentMinuteKey);
     }
+
+    // 4. Task D: Daily 1:30 AM IST (01:30)
+    if (ist.hour === 1 && ist.minute === 30) {
+      await this.triggerTaskIfDue('task_d_expiry', currentMinuteKey);
+    }
+
+    // 5. Task E: Daily 2:00 AM IST (02:00)
+    if (ist.hour === 2 && ist.minute === 0) {
+      await this.triggerTaskIfDue('task_e_retention', currentMinuteKey);
+    }
   }
 
   private static async triggerTaskIfDue(
@@ -160,7 +175,6 @@ export class CronManager {
     currentMinuteKey: string
   ): Promise<void> {
     if (this.lastExecutedMinute.get(taskKey) === currentMinuteKey) {
-      // Already triggered in this minute
       return;
     }
 

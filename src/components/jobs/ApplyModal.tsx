@@ -231,6 +231,20 @@ export const ApplyModal: React.FC<ApplyModalProps> = ({ job, isOpen, onClose, on
           </p>
         </div>
 
+        {job.status !== 'published' || (job.application_deadline && new Date(job.application_deadline) <= new Date()) ? (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            <div>
+              <p className="font-semibold">Applications Closed</p>
+              <p className="text-[11px] text-amber-700">
+                {job.status !== 'published'
+                  ? `This job listing is ${job.status} and is no longer accepting candidate applications.`
+                  : 'The application deadline for this position has passed.'}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -362,7 +376,7 @@ export const ApplyModal: React.FC<ApplyModalProps> = ({ job, isOpen, onClose, on
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || job.status !== 'published' || (job.application_deadline ? new Date(job.application_deadline) <= new Date() : false)}
               className="px-6 py-2 bg-[#121212] text-white rounded text-xs font-semibold hover:bg-neutral-800 transition-colors disabled:opacity-50"
             >
               {submitting ? 'Submitting Application...' : 'Confirm & Submit Application'}

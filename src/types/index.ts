@@ -91,6 +91,10 @@ export interface Job {
   application_mode: ApplicationMode;
   external_application_url?: string;
   application_deadline?: string;
+  source?: 'manual' | 'himalayas';
+  external_job_id?: string;
+  imported_at?: string;
+  closed_at?: string;
   status: JobStatus;
   is_featured: boolean;
   published_at?: string;

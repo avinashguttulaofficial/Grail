@@ -5,29 +5,28 @@ import { HimalayasRawJob } from '../src/services/himalayas';
 
 export class SchedulerEngine {
   /**
-   * Helper to check if a Himalayas raw job is eligible for India based on business rules:
-   * 1. Location restrictions containing "India" (case-insensitive)
-   * 2. Worldwide / Anywhere location restrictions
+   * Helper to check if a Himalayas raw job is eligible for India:
+   * 1. Location restrictions explicitly containing "India" (case-insensitive)
+   * 2. Worldwide / Anywhere / Global location restrictions
    * 3. Empty location restrictions (per existing worldwide eligibility rule)
    * 4. Excludes jobs restricted exclusively to other countries (e.g. ['US Only'], ['United States'])
    */
   static isJobEligibleForIndia(job: HimalayasRawJob): boolean {
     const locs = job.locationRestrictions || [];
 
-    // Rule: Empty location restrictions = worldwide = eligible for India
     if (locs.length === 0) {
       return true;
     }
 
     const lowerLocs = locs.map((l) => l.toLowerCase().trim());
 
-    // Check for explicit India inclusion
+    // Explicit India mention
     const mentionsIndia = lowerLocs.some((l) => l.includes('india') || l === 'in');
     if (mentionsIndia) {
       return true;
     }
 
-    // Check for worldwide / anywhere
+    // Explicit Worldwide / Anywhere mention
     const mentionsWorldwide = lowerLocs.some(
       (l) => l.includes('worldwide') || l.includes('anywhere') || l.includes('global')
     );
@@ -35,8 +34,7 @@ export class SchedulerEngine {
       return true;
     }
 
-    // If there are specific location restrictions and none include India or Worldwide,
-    // the job is restricted exclusively to other countries.
+    // Excluded if restricted exclusively to other countries
     return false;
   }
 
@@ -57,12 +55,21 @@ export class SchedulerEngine {
     const companySlug =
       raw.companySlug || raw.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
+    let companyWebsite = 'https://himalayas.app';
+    if (raw.guid) {
+      try {
+        companyWebsite = new URL(raw.guid).origin;
+      } catch (_) {
+        companyWebsite = 'https://himalayas.app';
+      }
+    }
+
     const companyData = {
       name: raw.companyName,
       slug: companySlug,
       logo_url: raw.companyLogo || undefined,
       description: `${raw.companyName} is a remote-first organization hiring through the Himalayas talent network.`,
-      website: raw.guid ? new URL(raw.guid).origin : 'https://himalayas.app',
+      website: companyWebsite,
       industry: raw.categories?.[0] || 'Software & Digital Products',
       company_size: '50-200',
       headquarters: raw.locationRestrictions?.[0] || 'Remote Worldwide',
@@ -102,6 +109,9 @@ export class SchedulerEngine {
     const jobData = {
       title: raw.title,
       slug: `${baseSlug}-${Date.now().toString(36)}`,
+      source: 'himalayas',
+      external_job_id: raw.guid,
+      imported_at: new Date().toISOString(),
       description: cleanDescription || `Remote ${raw.title} opportunity at ${raw.companyName}.`,
       responsibilities: [
         'Deliver high-quality work aligned with team OKRs and sprint deliverables',
@@ -134,7 +144,6 @@ export class SchedulerEngine {
         raw.applicationLink ||
         raw.guid ||
         `https://himalayas.app/companies/${companySlug}/jobs/${raw.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      external_job_id: raw.guid,
       status: 'published',
       is_featured: false,
       skills: raw.categories || ['Remote', 'Engineering'],
@@ -144,7 +153,7 @@ export class SchedulerEngine {
   }
 
   /**
-   * Execute one of the three scheduled tasks
+   * Execute any of the 5 scheduled tasks
    */
   static async executeTask(
     taskKey: SchedulerTaskKey,
@@ -186,29 +195,74 @@ export class SchedulerEngine {
     try {
       console.log(`[SchedulerEngine] Starting run ${run.id} for ${config.name} (${taskKey})...`);
 
-      // 2. Determine fetch parameters based on task specification
+      // -------------------------------------------------------------
+      // SPECIAL TASK D: Job Expiry Check
+      // -------------------------------------------------------------
+      if (taskKey === 'task_d_expiry') {
+        const result = await ServerDatabase.executeJobExpiry();
+        const completedAt = new Date().toISOString();
+        run = await ServerDatabase.updateSchedulerRun(run.id, {
+          completed_at: completedAt,
+          status: 'success',
+          fetched_count: result.expiredCount,
+          matched_count: result.expiredCount,
+          synced_count: result.expiredCount,
+          duplicate_count: 0,
+          failed_count: 0,
+          execution_metadata: {
+            trigger_type: triggerType,
+            expiredCount: result.expiredCount,
+          },
+        });
+        console.log(`[SchedulerEngine] Job Expiry Check complete: expired ${result.expiredCount} jobs.`);
+        return run;
+      }
+
+      // -------------------------------------------------------------
+      // SPECIAL TASK E: Job Retention Cleanup
+      // -------------------------------------------------------------
+      if (taskKey === 'task_e_retention') {
+        const result = await ServerDatabase.executeJobRetention();
+        const completedAt = new Date().toISOString();
+        run = await ServerDatabase.updateSchedulerRun(run.id, {
+          completed_at: completedAt,
+          status: 'success',
+          fetched_count: result.deletedCount,
+          matched_count: result.deletedCount,
+          synced_count: result.deletedCount,
+          duplicate_count: 0,
+          failed_count: 0,
+          execution_metadata: {
+            trigger_type: triggerType,
+            deletedCount: result.deletedCount,
+          },
+        });
+        console.log(`[SchedulerEngine] Job Retention Cleanup complete: permanently deleted ${result.deletedCount} aged Himalayas jobs.`);
+        return run;
+      }
+
+      // -------------------------------------------------------------
+      // FEED SYNC TASKS: Task A, Task B, Task C
+      // -------------------------------------------------------------
       let limitPerPage = config.configuration_json.limit || 20;
       let pagesToFetch = config.configuration_json.pages || 1;
       let targetJobCount = config.configuration_json.targetCount || 20;
 
       if (taskKey === 'task_a_nightly') {
-        // Spec: Fetch 100 jobs, 5 pages, 20 jobs per page
         limitPerPage = 20;
         pagesToFetch = 5;
         targetJobCount = 100;
       } else if (taskKey === 'task_b_morning') {
-        // Spec: Fetch 20 jobs, 1 page
         limitPerPage = 20;
         pagesToFetch = 1;
         targetJobCount = 20;
       } else if (taskKey === 'task_c_india') {
-        // Spec: Configurable max feed-fetch size defaulting to 100 jobs
         const maxFetch = config.configuration_json.maxFetch || 100;
         pagesToFetch = Math.ceil(maxFetch / limitPerPage);
         targetJobCount = maxFetch;
       }
 
-      // 3. Fetch from Himalayas with multi-page cursor pagination & retry
+      // Fetch from Himalayas with multi-page cursor pagination & retry
       const fetchResult = await ServerHimalayasClient.fetchMultiPage({
         limit: limitPerPage,
         pages: pagesToFetch,
@@ -218,7 +272,7 @@ export class SchedulerEngine {
       const fetchedJobs = fetchResult.jobs.slice(0, targetJobCount);
       console.log(`[SchedulerEngine] Fetched ${fetchedJobs.length} raw jobs for ${taskKey}.`);
 
-      // 4. Apply filters (Task C India filter)
+      // Apply filters (Task C India filter)
       let candidateJobs = fetchedJobs;
       if (taskKey === 'task_c_india') {
         candidateJobs = fetchedJobs.filter((j) => this.isJobEligibleForIndia(j));
@@ -231,8 +285,6 @@ export class SchedulerEngine {
       let duplicateCount = 0;
       let failedCount = 0;
 
-      // 5. Deduplicate and Sync Candidate Jobs
-      // In-memory set for current batch to prevent intra-batch duplicates
       const batchGuids = new Set<string>();
       const batchUrls = new Set<string>();
       const batchKeys = new Set<string>();
@@ -244,7 +296,6 @@ export class SchedulerEngine {
         const normTitle = this.normalizeTitle(rawJob.title);
         const compTitleKey = `${compSlug}:::${normTitle}`;
 
-        // Intra-batch duplicate check
         if (
           (guid && batchGuids.has(guid)) ||
           (appUrl && batchUrls.has(appUrl)) ||
@@ -255,7 +306,6 @@ export class SchedulerEngine {
         }
 
         try {
-          // Database Duplicate Check
           const existing = await ServerDatabase.findExistingJob({
             guid,
             applicationUrl: appUrl,
@@ -263,27 +313,23 @@ export class SchedulerEngine {
             title: rawJob.title,
           });
 
-          if (existing) {
-            // Already exists in DB - Skip safely, preserve existing data & ID
+          const { jobData, companyData } = this.mapRawJobToDb(rawJob);
+          const saveResult = await ServerDatabase.saveOrUpdateJob(jobData, companyData, existing);
+
+          if (saveResult.isNew) {
+            syncedCount++;
+          } else if (saveResult.isUpdated) {
+            syncedCount++;
+          } else {
             duplicateCount++;
-            if (guid) batchGuids.add(guid);
-            if (appUrl) batchUrls.add(appUrl);
-            batchKeys.add(compTitleKey);
-            continue;
           }
 
-          // Not a duplicate: Map and Save to Database
-          const { jobData, companyData } = this.mapRawJobToDb(rawJob);
-          await ServerDatabase.saveJob(jobData, companyData);
-
-          syncedCount++;
           if (guid) batchGuids.add(guid);
           if (appUrl) batchUrls.add(appUrl);
           batchKeys.add(compTitleKey);
         } catch (jobErr: any) {
           failedCount++;
           console.error(`[SchedulerEngine] Failed to sync job "${rawJob.title}":`, jobErr);
-          // Record job-level error
           await ServerDatabase.createJobError({
             run_id: run.id,
             external_job_id: guid,
@@ -291,11 +337,9 @@ export class SchedulerEngine {
             error_message: jobErr.message || String(jobErr),
             retry_count: 0,
           });
-          // Resilient: One failed job does not stop the remaining batch
         }
       }
 
-      // 6. Compute Final Run Status
       let finalStatus: 'success' | 'partial_success' | 'failed' = 'success';
       if (failedCount > 0 && syncedCount > 0) {
         finalStatus = 'partial_success';
@@ -329,7 +373,6 @@ export class SchedulerEngine {
       });
       return run;
     } finally {
-      // 7. Always Release Concurrency Lock
       await ServerDatabase.releaseLock(taskKey);
     }
   }

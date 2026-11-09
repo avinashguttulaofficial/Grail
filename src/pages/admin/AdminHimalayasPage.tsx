@@ -22,8 +22,25 @@ import {
   Save,
   ChevronLeft,
   ChevronRight,
+  Play,
+  AlertCircle,
+  Trash2,
+  Calendar,
+  Zap,
+  History,
+  Power,
+  Terminal,
+  CheckSquare,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  SchedulerClientService,
+  SchedulerTaskKey,
+  SchedulerTaskSummary,
+  SchedulerRunItem,
+  SchedulerJobErrorItem,
+  SchedulerOverviewStats,
+} from '../../services/scheduler';
 
 export const AdminHimalayasPage: React.FC = () => {
   const navigate = useNavigate();
@@ -65,6 +82,87 @@ export const AdminHimalayasPage: React.FC = () => {
     applicationLink: '',
     excerpt: '',
   });
+
+  // Scheduler Dashboard State
+  const [schedulerTasks, setSchedulerTasks] = useState<SchedulerTaskSummary[]>([]);
+  const [schedulerOverview, setSchedulerOverview] = useState<SchedulerOverviewStats | null>(null);
+  const [schedulerRuns, setSchedulerRuns] = useState<SchedulerRunItem[]>([]);
+  const [schedulerLoading, setSchedulerLoading] = useState(false);
+  const [schedulerActionKey, setSchedulerActionKey] = useState<string | null>(null);
+  const [serverTimeIst, setServerTimeIst] = useState<string>('');
+  const [selectedRunForErrors, setSelectedRunForErrors] = useState<SchedulerRunItem | null>(null);
+  const [runErrors, setRunErrors] = useState<SchedulerJobErrorItem[]>([]);
+  const [loadingErrors, setLoadingErrors] = useState(false);
+  const [showRetentionConfirmModal, setShowRetentionConfirmModal] = useState(false);
+
+  const loadSchedulerData = async () => {
+    setSchedulerLoading(true);
+    try {
+      const res = await SchedulerClientService.getStatus();
+      setSchedulerTasks(res.tasks || []);
+      setSchedulerOverview(res.overview || null);
+      setServerTimeIst(res.currentServerTimeIst || '');
+      const runs = await SchedulerClientService.getRuns(undefined, 20);
+      setSchedulerRuns(runs);
+      const syncedCount = await SchedulerClientService.syncBackgroundJobs();
+      if (syncedCount > 0) {
+        refreshExistingDbJobs();
+      }
+    } catch (e) {
+      console.warn('Failed to load scheduler data:', e);
+    } finally {
+      setSchedulerLoading(false);
+    }
+  };
+
+  const handleToggleScheduler = async (taskKey: SchedulerTaskKey, currentEnabled: boolean) => {
+    setSchedulerActionKey(taskKey);
+    try {
+      await SchedulerClientService.toggleTask(taskKey, !currentEnabled);
+      await loadSchedulerData();
+      setNotice(`Updated schedule status for ${taskKey}.`);
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err: any) {
+      alert(`Toggle failed: ${err.message}`);
+    } finally {
+      setSchedulerActionKey(null);
+    }
+  };
+
+  const handleTriggerTask = async (taskKey: SchedulerTaskKey) => {
+    if (taskKey === 'task_e_retention' && !showRetentionConfirmModal) {
+      setShowRetentionConfirmModal(true);
+      return;
+    }
+    setShowRetentionConfirmModal(false);
+    setSchedulerActionKey(taskKey);
+    try {
+      const run = await SchedulerClientService.triggerRun(taskKey);
+      await loadSchedulerData();
+      refreshExistingDbJobs();
+      setNotice(
+        `Task completed (${run.status}): ${run.synced_count} processed, ${run.duplicate_count} skipped, ${run.failed_count} errors.`
+      );
+      setTimeout(() => setNotice(null), 5000);
+    } catch (err: any) {
+      alert(`Run failed: ${err.message}`);
+    } finally {
+      setSchedulerActionKey(null);
+    }
+  };
+
+  const handleViewRunErrors = async (run: SchedulerRunItem) => {
+    setSelectedRunForErrors(run);
+    setLoadingErrors(true);
+    try {
+      const errs = await SchedulerClientService.getRunErrors(run.id);
+      setRunErrors(errs);
+    } catch (e) {
+      setRunErrors([]);
+    } finally {
+      setLoadingErrors(false);
+    }
+  };
 
   const refreshExistingDbJobs = () => {
     try {
@@ -129,6 +227,7 @@ export const AdminHimalayasPage: React.FC = () => {
   useEffect(() => {
     loadHimalayasFeed();
     refreshExistingDbJobs();
+    loadSchedulerData();
   }, []);
 
   const handleImportSingle = async (job: HimalayasRawJob) => {
@@ -590,6 +689,357 @@ export const AdminHimalayasPage: React.FC = () => {
           >
             Review all imported listings →
           </Link>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* Automated Himalayas Scheduler & Lifecycle Management Section  */}
+      {/* ------------------------------------------------------------- */}
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs p-6 space-y-6">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500 font-semibold">
+                Autonomous Background Scheduler & Lifecycle Engine
+              </span>
+            </div>
+            <h2 className="font-display font-black text-xl text-neutral-900 uppercase tracking-tight">
+              Feed Automation & Retention Schedulers
+            </h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Persistent server-side scheduling running independently of admin browser sessions. Free plan compatible via Supabase & pg_cron.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-[11px] font-mono text-neutral-600 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-neutral-400" />
+              <span>IST: {serverTimeIst || 'Asia/Kolkata'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={loadSchedulerData}
+              disabled={schedulerLoading}
+              className="h-8 px-3 bg-white border border-neutral-300 hover:bg-neutral-50 text-neutral-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${schedulerLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh Status</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Overview Metrics Strip (8 core metrics) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Total Synced</span>
+            <span className="font-display font-black text-lg text-neutral-900">{schedulerOverview?.totalImported ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">Himalayas jobs</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Imported Today</span>
+            <span className="font-display font-black text-lg text-emerald-600">+{schedulerOverview?.importedToday ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">New positions</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Updated Today</span>
+            <span className="font-display font-black text-lg text-neutral-800">{schedulerOverview?.updatedToday ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">Source refreshed</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Duplicates</span>
+            <span className="font-display font-black text-lg text-neutral-700">{schedulerOverview?.duplicatesSkipped ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">Safely skipped</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Failed Imports</span>
+            <span className={`font-display font-black text-lg ${(schedulerOverview?.failedImports || 0) > 0 ? 'text-red-600' : 'text-neutral-500'}`}>
+              {schedulerOverview?.failedImports ?? '0'}
+            </span>
+            <span className="text-[10px] text-neutral-400 block">Errors logged</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Expired Jobs</span>
+            <span className="font-display font-black text-lg text-amber-600">{schedulerOverview?.expiredJobs ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">Past deadline</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Retention Cleaned</span>
+            <span className="font-display font-black text-lg text-neutral-700">{schedulerOverview?.retentionDeleted ?? '0'}</span>
+            <span className="text-[10px] text-neutral-400 block">Aged &gt;3 months</span>
+          </div>
+
+          <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-0.5">Next Run</span>
+            <span className="font-mono font-bold text-xs text-neutral-800 truncate block mt-1">
+              {schedulerOverview?.nextScheduledSync
+                ? new Date(schedulerOverview.nextScheduledSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST'
+                : 'Active'}
+            </span>
+            <span className="text-[10px] text-neutral-400 block">Automatic tick</span>
+          </div>
+        </div>
+
+        {/* 5 Scheduler Task Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {schedulerTasks.map((task) => {
+            const isActing = schedulerActionKey === task.taskKey;
+            const lastStatus = task.lastRun?.status || 'never';
+            const istTimeDesc = task.configurationJson?.istTime || task.scheduleExpression;
+
+            return (
+              <div
+                key={task.taskKey}
+                className={`flex flex-col justify-between p-4 rounded-xl border transition-all ${
+                  task.enabled ? 'bg-white border-neutral-200 hover:border-neutral-300' : 'bg-neutral-50/60 border-neutral-200/60 opacity-80'
+                }`}
+              >
+                <div>
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 bg-neutral-100 text-neutral-700 font-bold rounded">
+                      {task.taskKey.replace('task_', 'TASK ').replace('_', ' ').toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleScheduler(task.taskKey, task.enabled)}
+                      disabled={isActing}
+                      className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full transition-colors flex items-center gap-1 ${
+                        task.enabled
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
+                      }`}
+                      title={task.enabled ? 'Click to disable scheduler' : 'Click to enable scheduler'}
+                    >
+                      <Power className="w-2.5 h-2.5" />
+                      <span>{task.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </button>
+                  </div>
+
+                  {/* Task Title & Schedule */}
+                  <h3 className="font-display font-bold text-sm text-neutral-900 leading-snug">
+                    {task.name}
+                  </h3>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500 font-mono">
+                    <Clock className="w-3 h-3 text-neutral-400 shrink-0" />
+                    <span>{istTimeDesc}</span>
+                  </div>
+
+                  {/* Next Execution */}
+                  <div className="mt-2 text-[10px] text-neutral-500 font-mono bg-neutral-50 px-2 py-1 rounded border border-neutral-100">
+                    <span className="text-neutral-400 block">Next Run (IST):</span>
+                    <span className="font-semibold text-neutral-800">
+                      {new Date(task.nextExecutionTime).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Last Run Stats */}
+                  <div className="mt-3 pt-3 border-t border-neutral-100 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-400 text-[10px] uppercase font-mono">Last Run</span>
+                      <span
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded uppercase ${
+                          lastStatus === 'success'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : lastStatus === 'partial_success'
+                            ? 'bg-amber-100 text-amber-700'
+                            : lastStatus === 'failed'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-neutral-100 text-neutral-500'
+                        }`}
+                      >
+                        {lastStatus}
+                      </span>
+                    </div>
+
+                    {task.lastRun ? (
+                      <div className="grid grid-cols-2 gap-1 text-[10px] font-mono pt-1 text-neutral-600">
+                        <div>
+                          <span className="text-neutral-400">Synced: </span>
+                          <span className="font-semibold text-neutral-900">{task.lastRun.synced_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400">Skipped: </span>
+                          <span className="font-semibold text-neutral-900">{task.lastRun.duplicate_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400">Fetched: </span>
+                          <span className="font-semibold text-neutral-900">{task.lastRun.fetched_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400">Errors: </span>
+                          <span className={`font-semibold ${task.lastRun.failed_count > 0 ? 'text-red-600' : 'text-neutral-900'}`}>
+                            {task.lastRun.failed_count}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-neutral-400 italic block pt-1">No prior run recorded</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Action Controls */}
+                <div className="pt-4 mt-3 border-t border-neutral-100">
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerTask(task.taskKey)}
+                    disabled={isActing}
+                    className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs ${
+                      task.taskKey === 'task_e_retention'
+                        ? 'bg-neutral-900 hover:bg-neutral-800 text-white'
+                        : task.taskKey === 'task_d_expiry'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-[#121212] hover:bg-neutral-800 text-white'
+                    } disabled:opacity-50`}
+                  >
+                    {isActing ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : task.taskKey === 'task_e_retention' ? (
+                      <Trash2 className="w-3 h-3" />
+                    ) : task.taskKey === 'task_d_expiry' ? (
+                      <Calendar className="w-3 h-3" />
+                    ) : (
+                      <Play className="w-3 h-3 fill-current" />
+                    )}
+                    <span>
+                      {isActing
+                        ? 'Executing...'
+                        : task.taskKey === 'task_e_retention'
+                        ? 'Run Retention Cleanup'
+                        : task.taskKey === 'task_d_expiry'
+                        ? 'Run Expiry Check'
+                        : 'Run Now'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Recent Execution Runs History Table */}
+        <div className="pt-4 border-t border-neutral-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-neutral-500" />
+              <h3 className="font-display font-bold text-sm text-neutral-900 uppercase tracking-tight">
+                Recent Scheduler Execution Runs
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono text-neutral-400">
+              Showing latest {schedulerRuns.length} runs
+            </span>
+          </div>
+
+          <div className="overflow-x-auto border border-neutral-200 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-50 border-b border-neutral-200 font-mono uppercase text-[10px] text-neutral-500 tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-3">Task Name</th>
+                  <th className="py-2.5 px-3">Started (IST)</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Fetched</th>
+                  <th className="py-2.5 px-3 text-right">Matched</th>
+                  <th className="py-2.5 px-3 text-right">Synced</th>
+                  <th className="py-2.5 px-3 text-right">Duplicates</th>
+                  <th className="py-2.5 px-3 text-right">Failed</th>
+                  <th className="py-2.5 px-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 font-mono text-[11px]">
+                {schedulerRuns.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-6 text-center text-neutral-400 italic font-sans text-xs">
+                      No scheduler runs recorded yet. Use &ldquo;Run Now&rdquo; to execute a task immediately.
+                    </td>
+                  </tr>
+                ) : (
+                  schedulerRuns.map((r) => {
+                    const taskName =
+                      r.task_key === 'task_a_nightly'
+                        ? 'Nightly Himalayas Import'
+                        : r.task_key === 'task_b_morning'
+                        ? 'Morning Himalayas Import'
+                        : r.task_key === 'task_c_india'
+                        ? 'India-Eligible Jobs'
+                        : r.task_key === 'task_d_expiry'
+                        ? 'Job Expiry Check'
+                        : r.task_key === 'task_e_retention'
+                        ? 'Job Retention Cleanup'
+                        : r.task_key;
+
+                    return (
+                      <tr key={r.id} className="hover:bg-neutral-50/50 transition-colors">
+                        <td className="py-2.5 px-3 font-sans font-semibold text-neutral-900">
+                          {taskName}
+                          <span className="block font-mono text-[9px] text-neutral-400 font-normal">{r.task_key}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-600">
+                          {new Date(r.started_at).toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              r.status === 'success'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : r.status === 'partial_success'
+                                ? 'bg-amber-100 text-amber-800'
+                                : r.status === 'failed'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-blue-100 text-blue-800 animate-pulse'
+                            }`}
+                          >
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-neutral-600">{r.fetched_count}</td>
+                        <td className="py-2.5 px-3 text-right text-neutral-600">{r.matched_count}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">+{r.synced_count}</td>
+                        <td className="py-2.5 px-3 text-right text-neutral-500">{r.duplicate_count}</td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span className={r.failed_count > 0 ? 'text-red-600 font-bold' : 'text-neutral-400'}>
+                            {r.failed_count}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {r.failed_count > 0 || r.error_message ? (
+                            <button
+                              type="button"
+                              onClick={() => handleViewRunErrors(r)}
+                              className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-[10px] font-semibold transition-colors"
+                            >
+                              View Errors
+                            </button>
+                          ) : (
+                            <span className="text-neutral-400 text-[10px]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -1355,6 +1805,135 @@ export const AdminHimalayasPage: React.FC = () => {
                   <span>{isJobImported(editingJob) ? 'Save Changes' : 'Save & Sync to Board'}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Retention Cleanup Confirmation Modal */}
+      {showRetentionConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-neutral-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-base text-neutral-900">
+                  Confirm Retention Cleanup
+                </h3>
+                <span className="text-[11px] font-mono text-neutral-500 uppercase">
+                  Destructive Database Maintenance
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-2">
+              <p className="font-semibold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>Permanent Job Deletion Policy</span>
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                This will permanently delete eligible <strong>Himalayas-imported jobs</strong> that have been expired, filled, or archived for over <strong>3 months</strong> (after the later of closure date and most recent candidate application date).
+              </p>
+              <div className="p-2 bg-white/80 rounded border border-amber-300 text-[10px] font-mono text-amber-950">
+                ✓ Guaranteed: Manually posted jobs (source: manual) and active published listings will <strong>NEVER</strong> be deleted.
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRetentionConfirmModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:text-neutral-900 rounded-lg hover:bg-neutral-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTriggerTask('task_e_retention')}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm & Clean Eligible Jobs</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Job-Level Errors Inspection Modal */}
+      {selectedRunForErrors && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl border border-neutral-200 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-sm text-neutral-900">
+                    Execution Errors & Audit Details
+                  </h3>
+                  <span className="text-[10px] font-mono text-neutral-400">
+                    Run ID: {selectedRunForErrors.id} · Task: {selectedRunForErrors.task_key}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRunForErrors(null)}
+                className="text-neutral-400 hover:text-neutral-700 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {selectedRunForErrors.error_message && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-mono text-red-700">
+                <strong>Run Error:</strong> {selectedRunForErrors.error_message}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h4 className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 font-bold">
+                Failed Jobs Log ({runErrors.length})
+              </h4>
+
+              {loadingErrors ? (
+                <div className="py-6 text-center text-xs text-neutral-400">
+                  <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-1" />
+                  <span>Loading job error log...</span>
+                </div>
+              ) : runErrors.length === 0 ? (
+                <p className="text-xs text-neutral-500 italic py-3 text-center bg-neutral-50 rounded-lg">
+                  No individual job-level errors recorded for this run.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {runErrors.map((err) => (
+                    <div key={err.id} className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg text-xs space-y-1 font-mono">
+                      <div className="flex items-center justify-between font-sans font-semibold text-neutral-900">
+                        <span>{err.job_title}</span>
+                        {err.external_job_id && (
+                          <span className="text-[9px] font-mono text-neutral-400">ID: {err.external_job_id}</span>
+                        )}
+                      </div>
+                      <p className="text-red-600 text-[11px]">{err.error_message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-neutral-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedRunForErrors(null)}
+                className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-semibold transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
