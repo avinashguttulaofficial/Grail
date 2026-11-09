@@ -1,0 +1,78 @@
+# Render Blueprint Configuration for Grail Jobs & Automated Himalayas Scheduler
+# https://render.com/docs/blueprint-spec
+
+services:
+  # 1. Main Web Service (Frontend + Express API Server + In-Process Scheduler Daemon)
+  - type: web
+    name: grail-jobs
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CRON_SECRET
+        generateValue: true
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # 2. Render Cron Job — TASK A: Nightly Full Feed Sync (9:30 PM IST / 16:00 UTC)
+  - type: cron
+    name: grail-jobs-nightly-sync
+    runtime: node
+    plan: starter
+    schedule: "30 16 * * *"
+    buildCommand: npm install
+    startCommand: npm run scheduler:run task_a_nightly
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # 3. Render Cron Job — TASK B: Morning Feed Sync (7:30 AM IST / 02:00 UTC)
+  - type: cron
+    name: grail-jobs-morning-sync
+    runtime: node
+    plan: starter
+    schedule: "30 2 * * *"
+    buildCommand: npm install
+    startCommand: npm run scheduler:run task_b_morning
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # 4. Render Cron Job — TASK C: India Location Sync (Every 6 hours: 00:00, 06:00, 12:00, 18:00 IST / 18:30, 00:30, 06:30, 12:30 UTC)
+  - type: cron
+    name: grail-jobs-india-sync
+    runtime: node
+    plan: starter
+    schedule: "30 0,6,12,18 * * *"
+    buildCommand: npm install
+    startCommand: npm run scheduler:run task_c_india
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

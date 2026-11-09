@@ -13,6 +13,10 @@ export default defineConfig(() => {
         },
         server: {
             proxy: {
+                '/api/scheduler': {
+                    target: 'http://localhost:3001',
+                    changeOrigin: true,
+                },
                 '/api/himalayas': {
                     target: 'https://himalayas.app',
                     changeOrigin: true,
