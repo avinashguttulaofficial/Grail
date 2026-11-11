@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { DataStore } from '../../services/store';
 import { useAuth } from '../../context/AuthContext';
 import { ApplyModal } from '../../components/jobs/ApplyModal';
 import { JobCard } from '../../components/jobs/JobCard';
-import { ArrowLeft, Share2, ExternalLink, Bookmark, CheckCircle2, Globe, Building2, MapPin, Calendar, DollarSign, Briefcase } from 'lucide-react';
+import { LoginPromptModal } from '../../components/auth/LoginPromptModal';
+import { ArrowLeft, Share2, ExternalLink, Bookmark, CheckCircle2, Globe, Building2, MapPin, Calendar, DollarSign, Briefcase, LogIn, X, UserPlus } from 'lucide-react';
 
 export const JobDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [applicationSuccess, setApplicationSuccess] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  const [pendingExternalUrl, setPendingExternalUrl] = useState<string | null>(null);
 
   const job = DataStore.getJobBySlug(slug || '');
 
@@ -48,6 +52,24 @@ export const JobDetailPage: React.FC = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleApply = () => {
+    if (!user) {
+      setPendingExternalUrl(null);
+      setLoginPromptOpen(true);
+      return;
+    }
+    setApplyModalOpen(true);
+  };
+
+  const handleExternalApply = (url: string) => {
+    if (!user) {
+      setPendingExternalUrl(url);
+      setLoginPromptOpen(true);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const similarJobs = DataStore.getJobs()
@@ -87,16 +109,14 @@ export const JobDetailPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             {job.external_application_url && (
-              <a
-                href={job.external_application_url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => handleExternalApply(job.external_application_url!)}
                 className="px-3.5 py-1.5 bg-[#121212] text-white rounded text-xs font-semibold hover:bg-neutral-800 transition-colors flex items-center gap-1.5 font-mono shadow-xs"
                 title="Directly redirect to external application link"
               >
                 <span>Apply on Himalayas</span>
                 <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              </button>
             )}
 
             <button
@@ -339,15 +359,13 @@ export const JobDetailPage: React.FC = () => {
               </div>
             ) : job.external_application_url || job.application_mode === 'external' ? (
               <div className="space-y-3">
-                <a
-                  href={job.external_application_url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => handleExternalApply(job.external_application_url || '#')}
                   className="w-full py-3.5 bg-[#121212] text-white rounded-lg text-xs font-semibold hover:bg-neutral-800 transition-colors uppercase tracking-wider font-mono shadow-sm flex items-center justify-center gap-2 group text-center"
                 >
-                  <span>Apply on Company Site / Himalayas</span>
+                  <span>Apply</span>
                   <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </a>
+                </button>
 
                 <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-[11px] text-neutral-600 space-y-1">
                   <div className="flex items-center gap-1.5 font-semibold text-neutral-900">
@@ -364,11 +382,10 @@ export const JobDetailPage: React.FC = () => {
 
                 <button
                   onClick={handleSaveToggle}
-                  className={`w-full py-2.5 border rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
-                    isSaved
-                      ? 'bg-neutral-100 border-neutral-300 text-neutral-900'
-                      : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                  }`}
+                  className={`w-full py-2.5 border rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${isSaved
+                    ? 'bg-neutral-100 border-neutral-300 text-neutral-900'
+                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                    }`}
                 >
                   <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
                   <span>{isSaved ? 'Saved to Dashboard' : 'Save Job'}</span>
@@ -377,7 +394,7 @@ export const JobDetailPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 <button
-                  onClick={() => setApplyModalOpen(true)}
+                  onClick={handleApply}
                   className="w-full py-3 bg-[#121212] text-white rounded-lg text-xs font-semibold hover:bg-neutral-800 transition-colors uppercase tracking-wider font-mono shadow-sm"
                 >
                   Apply For This Position
@@ -385,11 +402,10 @@ export const JobDetailPage: React.FC = () => {
 
                 <button
                   onClick={handleSaveToggle}
-                  className={`w-full py-2.5 border rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
-                    isSaved
-                      ? 'bg-neutral-100 border-neutral-300 text-neutral-900'
-                      : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                  }`}
+                  className={`w-full py-2.5 border rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${isSaved
+                    ? 'bg-neutral-100 border-neutral-300 text-neutral-900'
+                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                    }`}
                 >
                   <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
                   <span>{isSaved ? 'Saved to Dashboard' : 'Save Job'}</span>
@@ -461,6 +477,12 @@ export const JobDetailPage: React.FC = () => {
           setApplyModalOpen(false);
           setApplicationSuccess(true);
         }}
+      />
+
+      {/* Login Required Modal */}
+      <LoginPromptModal
+        isOpen={loginPromptOpen}
+        onClose={() => setLoginPromptOpen(false)}
       />
     </div>
   );

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Job } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { DataStore } from '../../services/store';
+import { LoginPromptModal } from '../auth/LoginPromptModal';
 import { Bookmark, Clock, ArrowRight, ExternalLink } from 'lucide-react';
 
 interface JobCardProps {
@@ -13,15 +14,28 @@ interface JobCardProps {
 export const JobCard: React.FC<JobCardProps> = ({ job, compact = false }) => {
   const { user } = useAuth();
   const isSaved = user ? DataStore.isJobSaved(job.id, user.id) : false;
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   const handleSaveToggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
-      alert('Please log in to bookmark jobs to your personal dashboard.');
+      setLoginPromptOpen(true);
       return;
     }
     DataStore.toggleSaveJob(job.id, user.id);
+  };
+
+  const handleApplyClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      setLoginPromptOpen(true);
+      return;
+    }
+    if (job.external_application_url) {
+      window.open(job.external_application_url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const formatSalary = () => {
@@ -85,11 +99,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, compact = false }) => {
             )}
             <button
               onClick={handleSaveToggle}
-              className={`p-1.5 rounded transition-colors ${
-                isSaved
-                  ? 'text-[#121212] bg-neutral-100'
-                  : 'text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50'
-              }`}
+              className={`p-1.5 rounded transition-colors ${isSaved
+                ? 'text-[#121212] bg-neutral-100'
+                : 'text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50'
+                }`}
               title={isSaved ? 'Remove from saved' : 'Save job'}
             >
               <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
@@ -133,17 +146,14 @@ export const JobCard: React.FC<JobCardProps> = ({ job, compact = false }) => {
 
           <div className="flex items-center gap-2">
             {job.external_application_url ? (
-              <a
-                href={job.external_application_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                onClick={handleApplyClick}
                 className="px-2.5 py-1 bg-[#121212] hover:bg-neutral-800 text-white text-[11px] font-mono font-semibold rounded flex items-center gap-1 transition-colors shadow-xs"
-                title="Directly redirect to application link"
+                title="Apply for this position"
               >
                 <span>Apply</span>
                 <ExternalLink className="w-3 h-3" />
-              </a>
+              </button>
             ) : (
               <Link
                 to={`/jobs/${job.slug}`}
@@ -160,9 +170,16 @@ export const JobCard: React.FC<JobCardProps> = ({ job, compact = false }) => {
             >
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+
           </div>
         </div>
       </div>
+
+      {/* Login Required Modal */}
+      <LoginPromptModal
+        isOpen={loginPromptOpen}
+        onClose={() => setLoginPromptOpen(false)}
+      />
     </div>
   );
 };
