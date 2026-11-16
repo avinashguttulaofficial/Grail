@@ -71,37 +71,7 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
-        {/* Quick Demo Logins Box */}
-        <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 space-y-3">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block">
-            Instant Demo Sign-In
-          </span>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('seeker')}
-              className="p-2.5 bg-white border border-neutral-200 hover:border-neutral-900 rounded-lg text-left transition-colors flex items-center gap-2"
-            >
-              <User className="w-4 h-4 text-neutral-600 shrink-0" />
-              <div>
-                <p className="font-semibold text-neutral-900 leading-none">Job Seeker</p>
-                <span className="text-[10px] text-neutral-400">Sarah Chen</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('admin')}
-              className="p-2.5 bg-white border border-neutral-200 hover:border-neutral-900 rounded-lg text-left transition-colors flex items-center gap-2"
-            >
-              <Shield className="w-4 h-4 text-neutral-900 shrink-0" />
-              <div>
-                <p className="font-semibold text-neutral-900 leading-none">Administrator</p>
-                <span className="text-[10px] text-neutral-400">Alex Wright</span>
-              </div>
-            </button>
-          </div>
-        </div>
+      
 
         {/* Standard Email Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
