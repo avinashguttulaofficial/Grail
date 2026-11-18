@@ -1,0 +1,17 @@
+name: Trigger Himalayas India Jobs Sync
+
+on:
+  schedule:
+    # Runs every 6 hours (at 00:30, 06:30, 12:30, and 18:30 UTC)
+    - cron: '30 0,6,12,18 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel Cron Endpoint
+        run: |
+          curl -s -f -X GET "https://grailjobs.online/api/cron?taskKey=task_c_india" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || \
+          curl -s -f -X GET "https://grailjobs.online/api/cron?taskKey=task_c_india"
