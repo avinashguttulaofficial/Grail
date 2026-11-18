@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/scheduler/:match*",
+      "destination": "/api/scheduler/[...path]?path=:match*"
+    },
+    {
+      "source": "/api/cron",
+      "destination": "/api/cron"
+    },
+    {
+      "source": "/api/himalayas/:match*",
+      "destination": "https://himalayas.app/:match*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron?taskKey=task_a_nightly",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron?taskKey=task_b_morning",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron?taskKey=task_c_india",
+      "schedule": "30 0,6,12,18 * * *"
+    },
+    {
+      "path": "/api/cron?taskKey=task_d_expiry",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron?taskKey=task_e_retention",
+      "schedule": "30 20 * * *"
+    }
+  ]
+}

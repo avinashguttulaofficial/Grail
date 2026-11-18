@@ -919,7 +919,7 @@ export class DataStore {
 
   // --- Auth & User Session ---
   static getCurrentUser(): UserProfile | null {
-    return getStorage<UserProfile | null>(KEY_USER, INITIAL_USERS[2]); // Default to Sarah Chen (Job Seeker)
+    return getStorage<UserProfile | null>(KEY_USER, null); // Default to guest (null)
   }
 
   static setCurrentUser(user: UserProfile | null): void {
