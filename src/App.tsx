@@ -29,6 +29,11 @@ import { SavedJobsTab } from './pages/dashboard/SavedJobsTab';
 import { ResumesTab } from './pages/dashboard/ResumesTab';
 import { SettingsTab } from './pages/dashboard/SettingsTab';
 
+// Legal Pages
+import { PrivacyPage } from './pages/legal/PrivacyPage';
+import { TermsPage } from './pages/legal/TermsPage';
+import { SecurityPage } from './pages/legal/SecurityPage';
+
 // Admin Pages
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
@@ -73,6 +78,11 @@ export default function App() {
             <Route path="/resources" element={<ResourcesPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
+
+            {/* Legal Pages */}
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/security" element={<SecurityPage />} />
 
             {/* Auth Routes inside Public Frame */}
             <Route path="/login" element={<LoginPage />} />

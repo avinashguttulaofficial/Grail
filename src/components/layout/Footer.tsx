@@ -96,8 +96,13 @@ export const Footer: React.FC = () => {
             <p className="text-xs text-neutral-500 leading-relaxed">
               Only authorized platform administrators may publish or curate listings. All job opportunities are directly vetted for authenticity, compensation transparency, and creative standards.
             </p>
+            <ul className="space-y-2 text-xs pt-1">
+              <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link to="/security" className="hover:text-white transition-colors">Security Standards</Link></li>
+            </ul>
             <div className="pt-2 text-[11px] text-neutral-500 font-mono">
-              <span>Standard 2026.11 · Powered by Supabase & PostgreSQL</span>
+              <span>Standard 2026.11 · Powered by Supabase &amp; PostgreSQL</span>
             </div>
           </div>
         </div>
@@ -106,9 +111,9 @@ export const Footer: React.FC = () => {
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
           <p>© 2026 GRAIL JOBS. Built with precision and typographic rigor.</p>
           <div className="flex items-center gap-6">
-            <span className="hover:text-neutral-400 cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-neutral-400 cursor-pointer">Terms of Service</span>
-            <span className="hover:text-neutral-400 cursor-pointer">Security Standards</span>
+            <Link to="/privacy" className="hover:text-neutral-300 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-neutral-300 transition-colors">Terms of Service</Link>
+            <Link to="/security" className="hover:text-neutral-300 transition-colors">Security Standards</Link>
           </div>
         </div>
       </div>
