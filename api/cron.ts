@@ -5,7 +5,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const taskKey = req.query.taskKey || 'task_b_morning';
-  const { SchedulerEngine } = await import('../server/schedulerEngine');
+  const { SchedulerEngine } = await import('../server/schedulerEngine.js');
 
   try {
     const run = await SchedulerEngine.executeTask(taskKey, 'scheduled');

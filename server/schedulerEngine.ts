@@ -1,7 +1,7 @@
-import { ServerHimalayasClient } from './himalayasClient';
-import { ServerDatabase } from './db';
-import { SchedulerRun, SchedulerTaskKey } from './types';
-import { HimalayasRawJob } from '../src/services/himalayas';
+import { ServerHimalayasClient } from './himalayasClient.js';
+import { ServerDatabase } from './db.js';
+import { SchedulerRun, SchedulerTaskKey } from './types.js';
+import { HimalayasRawJob } from '../src/services/himalayas.js';
 
 export class SchedulerEngine {
   /**

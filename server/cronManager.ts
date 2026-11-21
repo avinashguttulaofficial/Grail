@@ -1,6 +1,6 @@
-import { SchedulerEngine } from './schedulerEngine';
-import { ServerDatabase } from './db';
-import { SchedulerTaskKey } from './types';
+import { SchedulerEngine } from './schedulerEngine.js';
+import { ServerDatabase } from './db.js';
+import { SchedulerTaskKey } from './types.js';
 
 export class CronManager {
   private static timer: NodeJS.Timeout | null = null;
