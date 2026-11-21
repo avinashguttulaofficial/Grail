@@ -1,4 +1,4 @@
-import { HimalayasRawJob, HimalayasApiResponse } from '../src/services/himalayas';
+import { HimalayasRawJob, HimalayasApiResponse } from '../src/services/himalayas.js';
 
 const BASE_URL = 'https://himalayas.app/jobs/api';
 

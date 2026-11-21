@@ -11,9 +11,9 @@ export default async function handler(req: any, res: any) {
   const subPath = Array.isArray(path) ? path.join('/') : path || '';
 
   try {
-    const { ServerDatabase } = await import('../../server/db');
-    const { CronManager } = await import('../../server/cronManager');
-    const { SchedulerEngine } = await import('../../server/schedulerEngine');
+    const { ServerDatabase } = await import('../../server/db.js');
+    const { CronManager } = await import('../../server/cronManager.js');
+    const { SchedulerEngine } = await import('../../server/schedulerEngine.js');
 
     ServerDatabase.init();
 

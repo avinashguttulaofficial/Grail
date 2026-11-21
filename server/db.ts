@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { SchedulerConfig, SchedulerRun, SchedulerJobError, SchedulerTaskKey } from './types';
+import { SchedulerConfig, SchedulerRun, SchedulerJobError, SchedulerTaskKey } from './types.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
